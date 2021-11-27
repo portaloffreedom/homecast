@@ -159,7 +159,7 @@ class QWidgetChromecast(QWidget):
         self.httpserver.start()
 
         time.sleep(1)
-        self.media_controller.play_media(self.httpserver.serving_url(), 'video/mp4')
+        self.media_controller.play_media(self.httpserver.serving_url(), self.httpserver.content_type())
         self.media_controller.block_until_active()
 
         print(self.media_controller.status)
