@@ -1,0 +1,14 @@
+# Python
+*.pyc
+
+# QtCreator
+/Homecast.cflags
+/Homecast.config
+/Homecast.creator
+/Homecast.cxxflags
+/Homecast.files
+/Homecast.includes
+*.creator.user
+
+# Kdevelop
+*.kdev4
