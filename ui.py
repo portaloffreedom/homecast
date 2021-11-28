@@ -242,8 +242,9 @@ class UI(QWidget):
         self.playback_slider.setDisabled(True)
 
         # Reset app state
-        self.chromecast_ui.httpserver.stop()
-        self.chromecast_ui.httpserver = None
+        if self.chromecast_ui.httpserver is not None:
+            self.chromecast_ui.httpserver.stop()
+            self.chromecast_ui.httpserver = None
 
     def shadow_seek(self, new_value):
         self.seek_command = new_value
