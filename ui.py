@@ -1,3 +1,4 @@
+import logging
 from typing import AnyStr, Optional
 import os
 import sys
@@ -9,7 +10,8 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QSlider, QVBoxLayout, QHBoxLayout, QFileDialog, \
     QMessageBox, QComboBox, QStyle, QSpacerItem, QSizePolicy, QLabel
-from pychromecast.controllers.media import MediaController
+from pychromecast.controllers.media import MediaController, MediaStatusListener, MediaStatus
+from pychromecast.controllers.receiver import LaunchErrorListener, LaunchFailure, CastStatusListener, CastStatus
 
 from server import Server
 
@@ -97,7 +99,7 @@ class QWidgetChromecast(QWidget):
 
         self.zconf = None
         self.device = None
-        self.cast = None
+        self.cast: Optional[pychromecast.Chromecast] = None
         self.media_controller: Optional[MediaController] = None
         self.httpserver = None
 
@@ -139,6 +141,7 @@ class QWidgetChromecast(QWidget):
             self.device,
             self.zconf,
         )
+        self.cast.logger.setLevel(logging.DEBUG)
 
         # Discover and connect to chromecasts named Living Room
         # chromecasts, browser = pychromecast.get_listed_chromecasts(friendly_names=["Living Room TV"])
@@ -182,6 +185,8 @@ class UI(QWidget):
         self.timer.start(1000)
         self.old_seek_time: float = -1
 
+        self.listener = StatusListener(self)
+
         self.media_select = QPushButton('Select media', self)
         self.playback_slider = QMediaControl(self)
         self.chromecast_ui = QWidgetChromecast(self)
@@ -224,6 +229,9 @@ class UI(QWidget):
                 return
             if not self.chromecast_ui.is_connected():
                 self.chromecast_ui.connect_chromecast()
+                self.chromecast_ui.cast.register_launch_error_listener(self.listener)
+                self.chromecast_ui.cast.register_status_listener(self.listener)
+                self.chromecast_ui.media_controller.register_status_listener(self.listener)
             self.chromecast_ui.play_file(self.filename)
             self.playback_slider.setDisabled(False)
         else: # self.chromecast_ui.media_controller.status.player_is_playing:
@@ -259,22 +267,10 @@ class UI(QWidget):
         if self.chromecast_ui.media_controller is None:
             return
         media_status = self.chromecast_ui.media_controller.status
-        # print(media_status)
-        if media_status.duration is not None:
-            self.playback_slider.slider.setMaximum(int(media_status.duration))
-            self.playback_slider.setDisabled(False)
-            print("let's check now if we get any subtitles!")
-            print(media_status.subtitle_tracks)
-            print(media_status)
-            # print(media_status.current_time)
-            new_seek_value = self.playback_slider.slider.value()
-            if media_status.player_state == 'PLAYING':
-                new_seek_value += 1
-            if media_status.current_time != self.old_seek_time:
-                self.old_seek_time = media_status.current_time
-                new_seek_value = media_status.current_time
-            if not self.playback_slider.slider.isSliderDown():
-                self.playback_slider.slider.setValue(new_seek_value)
+        if media_status.player_state == 'PLAYING':
+            new_seek_value = self.playback_slider.slider.value() + 1
+            self.playback_slider.slider.setValue(new_seek_value)
+        self.chromecast_ui.media_controller.update_status(None)
 
     def exec(self):
         self.app.exec()
@@ -282,3 +278,25 @@ class UI(QWidget):
             self.chromecast_ui.media_controller.stop()
         if self.chromecast_ui.httpserver is not None:
             self.chromecast_ui.httpserver.stop()
+
+
+class StatusListener(LaunchErrorListener, CastStatusListener, MediaStatusListener):
+    ui: UI
+
+    def __init__(self, ui: UI):
+        self.ui = ui
+
+    def new_launch_error(self, status: LaunchFailure):
+        print("LaunchErrorListener:", status)
+
+    def new_cast_status(self, cast_status: CastStatus):
+        print("New Cast Status: ", cast_status)
+
+    def new_media_status(self, media_status: MediaStatus):
+        if media_status.duration is not None:
+            self.ui.playback_slider.slider.setMaximum(int(media_status.duration))
+            self.ui.playback_slider.setDisabled(False)
+        # print("let's check now if we get any subtitles!")
+        # print(media_status.subtitle_tracks)
+        # print(media_status)
+        self.ui.playback_slider.slider.setValue(media_status.current_time)
