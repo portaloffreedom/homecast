@@ -218,11 +218,12 @@ class UI(QWidget):
 
     def play(self):
         print("play")
-        if not self.chromecast_ui.is_connected():
+        if self.chromecast_ui.httpserver is None:
             if self.filename == "":
                 showError("Invalid file","Please select a file first")
                 return
-            self.chromecast_ui.connect_chromecast()
+            if not self.chromecast_ui.is_connected():
+                self.chromecast_ui.connect_chromecast()
             self.chromecast_ui.play_file(self.filename)
             self.playback_slider.setDisabled(False)
         else: # self.chromecast_ui.media_controller.status.player_is_playing:
@@ -239,6 +240,10 @@ class UI(QWidget):
             return
         self.chromecast_ui.media_controller.stop()
         self.playback_slider.setDisabled(True)
+
+        # Reset app state
+        self.chromecast_ui.httpserver.stop()
+        self.chromecast_ui.httpserver = None
 
     def shadow_seek(self, new_value):
         self.seek_command = new_value
@@ -257,6 +262,9 @@ class UI(QWidget):
         if media_status.duration is not None:
             self.playback_slider.slider.setMaximum(int(media_status.duration))
             self.playback_slider.setDisabled(False)
+            print("let's check now if we get any subtitles!")
+            print(media_status.subtitle_tracks)
+            print(media_status)
             # print(media_status.current_time)
             new_seek_value = self.playback_slider.slider.value()
             if media_status.player_state == 'PLAYING':
